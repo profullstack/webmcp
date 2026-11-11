@@ -11,9 +11,11 @@
 // module hides those differences, validates tool definitions, and is a silent no-op
 // where WebMCP does not exist, so a site can ship it unconditionally.
 
-export const VERSION = '0.2.0';
+export const VERSION = '0.2.1';
 
 const NAME_RE = /^[A-Za-z0-9_.-]{1,64}$/;
+// Symbol.for, not Symbol(): every copy of this module must find the same key.
+const REGISTRY = Symbol.for('@profullstack/webmcp.registered');
 
 /** The page's ModelContext, or null when the browser has no WebMCP. */
 export function getModelContext(doc = globalThis.document, nav = globalThis.navigator) {
@@ -115,16 +117,31 @@ export async function registerTool(tool, options = {}) {
   if (!mc) return () => {};
   if (options.signal?.aborted) return () => {};
 
+  // One registration per tool name per ModelContext, page-wide. The registry
+  // lives on the context itself, so two copies of this library (a site tag and
+  // the crawlproof stats.js plugin, or @0 and a pinned version) share it and the
+  // second copy skips instead of registering a duplicate.
+  const names = (mc[REGISTRY] ??= new Set());
+  if (names.has(def.name)) return () => {};
+  names.add(def.name);
+
   const controller = new AbortController();
   const regOptions = { signal: controller.signal };
   if (options.exposedTo) regOptions.exposedTo = options.exposedTo;
 
-  const registered = await mc.registerTool({ ...def, execute: wrapExecute(def, options.onError, options.onCall) }, regOptions);
+  let registered;
+  try {
+    registered = await mc.registerTool({ ...def, execute: wrapExecute(def, options.onError, options.onCall) }, regOptions);
+  } catch (err) {
+    names.delete(def.name);
+    throw err;
+  }
 
   let done = false;
   const unregister = () => {
     if (done) return;
     done = true;
+    names.delete(def.name);
     controller.abort();
     // Pre-signal builds: an object with unregister(), or unregisterTool(name).
     try {
@@ -134,7 +151,9 @@ export async function registerTool(tool, options = {}) {
       // Already gone.
     }
   };
-  options.signal?.addEventListener('abort', unregister, { once: true });
+  // Aborted while registerTool was pending (React StrictMode mount/unmount).
+  if (options.signal?.aborted) unregister();
+  else options.signal?.addEventListener('abort', unregister, { once: true });
   return unregister;
 }
 
