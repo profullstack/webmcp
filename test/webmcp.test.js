@@ -106,7 +106,7 @@ test('no WebMCP: registerTool is a no-op', async () => {
   assert.equal(typeof off, 'function');
 });
 
-test('registerTools skips a duplicate and keeps the rest', async () => {
+test('registerTools skips a duplicate name and keeps the rest', async () => {
   const mc = fakeContext();
   const errors = [];
   const off = await registerTools(
@@ -118,9 +118,41 @@ test('registerTools skips a duplicate and keeps the rest', async () => {
     { context: mc, onError: (e) => errors.push(e) },
   );
   assert.deepEqual([...mc.tools.keys()], ['a', 'b']);
-  assert.equal(errors.length, 1);
+  assert.equal(mc.tools.get('a').description, 'd');
+  assert.equal(errors.length, 0);
   off();
   assert.equal(mc.tools.size, 0);
+});
+
+test('a second copy of the library (separate module instance) never double-registers', async () => {
+  const mc = fakeContext();
+  const copy = await import('../src/core.js?copy=2'); // a distinct module instance
+  await registerTool({ name: 'site_info', description: 'first', execute: () => 1 }, { context: mc });
+  const off2 = await copy.registerTool({ name: 'site_info', description: 'second', execute: () => 2 }, { context: mc });
+  assert.equal(mc.tools.size, 1);
+  assert.equal(mc.tools.get('site_info').description, 'first');
+  off2(); // the skipped copy's unregister must not remove the first copy's tool
+  assert.equal(mc.tools.size, 1);
+});
+
+test('unregister frees the name for re-registration; abort during a pending register cleans up', async () => {
+  const mc = fakeContext();
+  const off = await registerTool({ name: 'x', description: 'd', execute: () => 1 }, { context: mc });
+  off();
+  await registerTool({ name: 'x', description: 'again', execute: () => 1 }, { context: mc });
+  assert.equal(mc.tools.get('x').description, 'again');
+
+  const slow = { ...fakeContext() };
+  const inner = fakeContext();
+  slow.tools = inner.tools;
+  slow.registerTool = async (t, o) => { await new Promise((r) => setTimeout(r, 10)); return inner.registerTool(t, o); };
+  const ac = new AbortController();
+  const p = registerTool({ name: 'y', description: 'd', execute: () => 1 }, { context: slow, signal: ac.signal });
+  ac.abort();
+  await p;
+  assert.equal(inner.tools.size, 0);
+  await registerTool({ name: 'y', description: 'd', execute: () => 1 }, { context: slow });
+  assert.equal(inner.tools.size, 1);
 });
 
 test('mapAnnotations: unknown tools are consequential, read-only ones are not', () => {

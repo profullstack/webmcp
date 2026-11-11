@@ -1,6 +1,6 @@
 {
   "name": "@profullstack/webmcp",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "type": "module",
   "description": "WebMCP for every site: register page tools for in-browser AI agents (document.modelContext), bridge an existing MCP server, and turn forms into tools. One script tag or one import; no-op where unsupported.",
   "keywords": ["webmcp", "mcp", "model-context-protocol", "modelContext", "ai-agents", "agentic-web", "browser", "tools"],
