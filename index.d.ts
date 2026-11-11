@@ -25,6 +25,8 @@ export interface RegisterOptions {
   signal?: AbortSignal;
   exposedTo?: string[];
   onError?: (error: unknown, tool: WebMCPTool) => void;
+  /** After each agent call: tool name, outcome, duration. Never the input or result. */
+  onCall?: (detail: { name: string; ok: boolean; ms: number; error?: 'error' | 'aborted' }) => void;
   context?: unknown;
 }
 

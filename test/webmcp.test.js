@@ -60,6 +60,29 @@ test('registerTool registers, wraps errors as results, and unregisters', async (
   off(); // idempotent
 });
 
+test('onCall reports name/ok/ms per call, never input, and a throwing listener is harmless', async () => {
+  const mc = fakeContext();
+  const calls = [];
+  await registerTools(
+    [
+      { name: 'good', description: 'd', execute: () => ({ secret: 1 }) },
+      { name: 'bad', description: 'd', execute: () => { throw new Error('x'); } },
+    ],
+    { context: mc, onCall: (d) => calls.push(d) },
+  );
+  await mc.tools.get('good').execute({ password: 'p' }, {});
+  await mc.tools.get('bad').execute({}, {});
+  assert.deepEqual(calls.map(({ name, ok, error }) => ({ name, ok, error })), [
+    { name: 'good', ok: true, error: undefined },
+    { name: 'bad', ok: false, error: 'error' },
+  ]);
+  assert.ok(calls.every((c) => typeof c.ms === 'number' && !('input' in c) && !('result' in c)));
+
+  const mc2 = fakeContext();
+  await registerTool({ name: 't', description: 'd', execute: () => 7 }, { context: mc2, onCall: () => { throw new Error('listener'); } });
+  assert.equal(await mc2.tools.get('t').execute({}, {}), 7);
+});
+
 test('caller signal unregisters', async () => {
   const mc = fakeContext();
   const ac = new AbortController();

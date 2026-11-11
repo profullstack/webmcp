@@ -42,6 +42,24 @@ CSP: allow `https://cdn.jsdelivr.net` in `script-src`.
 Pages can add tools later: `window.ProfullstackWebMCP.registerTool({...})`, and
 `document` fires `webmcp:ready` with the registered names.
 
+Every agent call fires `webmcp:call` on `document` with `{ name, ok, ms, error? }`
+(never the input or the result), so analytics can count which tools agents use.
+In code, pass `onCall` to `registerTool`/`registerTools`/`bridgeMcpServer`.
+
+### Via crawlproof stats.js
+
+Sites already on [crawlproof](https://crawlproof.com) stats can skip the separate tag:
+
+```html
+<script data-site="<project_id>" src="https://crawlproof.com/stats.js"
+  data-webmcp data-webmcp-mcp="/mcp" data-webmcp-search="/search?q={query}"></script>
+```
+
+stats.js loads this embed only in browsers that have WebMCP, and records each
+agent tool call as a `webmcp_tool` event. `data-webmcp-*` takes the same keys as
+the embed's `data-*` attributes (`-mcp`, `-mcp-prefix`, `-mcp-exclude`, `-search`,
+`-search-api`, `-pages`, `-name`, `-description`).
+
 ## Forms
 
 Use the declarative attributes from the WebMCP proposal. Browsers that support them
