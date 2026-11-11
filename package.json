@@ -1,0 +1,27 @@
+{
+  "name": "@profullstack/webmcp",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "WebMCP for every site: register page tools for in-browser AI agents (document.modelContext), bridge an existing MCP server, and turn forms into tools. One script tag or one import; no-op where unsupported.",
+  "keywords": ["webmcp", "mcp", "model-context-protocol", "modelContext", "ai-agents", "agentic-web", "browser", "tools"],
+  "repository": { "type": "git", "url": "git+https://github.com/profullstack/webmcp.git" },
+  "homepage": "https://github.com/profullstack/webmcp#readme",
+  "bugs": { "url": "https://github.com/profullstack/webmcp/issues" },
+  "license": "MIT",
+  "author": "Profullstack, Inc.",
+  "exports": {
+    ".": { "types": "./index.d.ts", "import": "./src/index.js" },
+    "./react": { "types": "./react.d.ts", "import": "./src/react.js" },
+    "./embed": "./src/embed.js",
+    "./package.json": "./package.json"
+  },
+  "bin": { "webmcp": "bin/webmcp.js" },
+  "files": ["src", "bin", "index.d.ts", "react.d.ts", "README.md", "LICENSE"],
+  "sideEffects": ["./src/embed.js"],
+  "peerDependencies": { "react": ">=18" },
+  "peerDependenciesMeta": { "react": { "optional": true } },
+  "engines": { "node": ">=18" },
+  "scripts": {
+    "test": "node --test"
+  }
+}
