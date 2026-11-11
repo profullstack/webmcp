@@ -11,7 +11,7 @@
 // module hides those differences, validates tool definitions, and is a silent no-op
 // where WebMCP does not exist, so a site can ship it unconditionally.
 
-export const VERSION = '0.1.0';
+export const VERSION = '0.2.0';
 
 const NAME_RE = /^[A-Za-z0-9_.-]{1,64}$/;
 
@@ -71,13 +71,28 @@ export function defineTool(tool) {
 // The agent receives whatever execute resolves to, serialised. Errors become a
 // plain { error } result rather than a rejected promise, which some agents report
 // as "the tool crashed" and never show the message from.
-function wrapExecute(tool, onError) {
+//
+// onCall({ name, ok, ms, error? }) fires once per agent call, after it settles.
+// It never sees the input or the result: analytics get what was used, not what
+// the person typed.
+function wrapExecute(tool, onError, onCall) {
+  const report = (detail) => {
+    try {
+      onCall?.(detail);
+    } catch {
+      // A broken listener must not break the tool.
+    }
+  };
   return async (input, options) => {
+    const started = Date.now();
     try {
       const result = await tool.execute(input ?? {}, options ?? {});
+      report({ name: tool.name, ok: true, ms: Date.now() - started });
       return result === undefined ? { ok: true } : result;
     } catch (err) {
-      if (options?.signal?.aborted) throw err;
+      const aborted = Boolean(options?.signal?.aborted);
+      report({ name: tool.name, ok: false, ms: Date.now() - started, error: aborted ? 'aborted' : 'error' });
+      if (aborted) throw err;
       onError?.(err, tool);
       return { error: String(err?.message ?? err) };
     }
@@ -91,6 +106,7 @@ function wrapExecute(tool, onError) {
  * options.signal     aborting it unregisters the tool
  * options.exposedTo  origins (in this document's tree) the tool is exposed to
  * options.onError    called with (error, tool) when execute throws
+ * options.onCall     called with { name, ok, ms, error? } after each agent call
  * options.context    a ModelContext to use (tests, iframes)
  */
 export async function registerTool(tool, options = {}) {
@@ -103,7 +119,7 @@ export async function registerTool(tool, options = {}) {
   const regOptions = { signal: controller.signal };
   if (options.exposedTo) regOptions.exposedTo = options.exposedTo;
 
-  const registered = await mc.registerTool({ ...def, execute: wrapExecute(def, options.onError) }, regOptions);
+  const registered = await mc.registerTool({ ...def, execute: wrapExecute(def, options.onError, options.onCall) }, regOptions);
 
   let done = false;
   const unregister = () => {

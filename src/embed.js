@@ -48,8 +48,23 @@ function findConfig() {
   };
 }
 
+// Every agent call is announced on document as `webmcp:call` with
+// { name, ok, ms, error? } (never the input or result), so analytics such as
+// crawlproof stats.js can count which tools agents use.
+function onCall(detail) {
+  document.dispatchEvent(new CustomEvent('webmcp:call', { detail }));
+}
+
 async function main() {
-  const api = { VERSION, supported: false, tools: [], registerTool, registerTools };
+  if (globalThis.ProfullstackWebMCP) return; // loaded twice (site tag + stats.js plugin)
+  const withCall = (opts = {}) => ({ onCall, ...opts });
+  const api = {
+    VERSION,
+    supported: false,
+    tools: [],
+    registerTool: (tool, opts) => registerTool(tool, withCall(opts)),
+    registerTools: (tools, opts) => registerTools(tools, withCall(opts)),
+  };
   globalThis.ProfullstackWebMCP = api;
   if (!getModelContext()) return;
   api.supported = true;
@@ -58,16 +73,17 @@ async function main() {
 
   const offs = [];
   const own = siteTools(cfg);
-  offs.push(await registerTools(own, { onError }));
+  offs.push(await registerTools(own, { onError, onCall }));
   api.tools.push(...own.map((t) => t.name));
 
-  if (cfg.forms) offs.push(await registerForms(document, { onError }));
+  if (cfg.forms) offs.push(await registerForms(document, { onError, onCall }));
 
   if (cfg.mcp) {
     const res = await bridgeMcpServer(new URL(cfg.mcp, location.href).href, {
       prefix: cfg.mcpPrefix,
       exclude: cfg.mcpExclude,
       onError,
+      onCall,
     });
     if (res.error) console.info('[webmcp] MCP bridge skipped:', res.error);
     offs.push(res.unregister);
